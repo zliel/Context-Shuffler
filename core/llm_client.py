@@ -4,7 +4,13 @@ import urllib.error
 
 
 def generate_variation(
-    url: str, model: str, system_prompt: str, target: str, sentence: str, temp: float
+    url: str,
+    model: str,
+    system_prompt: str,
+    target: str,
+    sentence: str,
+    temp: float,
+    keep_alive: int = 0,
 ) -> str:
     """
     Synchronously calls the local Ollama API to generate a replacement sentence.
@@ -21,6 +27,9 @@ def generate_variation(
         "think": False,
         "options": {"temperature": temp, "num_predict": 150},
     }
+
+    if keep_alive > 0:
+        payload["keep_alive"] = keep_alive * 60
 
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST")
