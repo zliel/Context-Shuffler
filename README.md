@@ -1,4 +1,4 @@
-# Anki Context Shuffler
+# Context Shuffler
 
 An Anki addon that intercepts card rendering during review sessions and replaces example sentences with LLM-generated variations. When you review a flashcard containing a target word and an example sentence, the addon calls a local LLM to generate a new sentence using the same target word but in a different situation, helping you encounter vocabulary in varied contexts for better retention.
 
@@ -40,7 +40,7 @@ You can also find it from within Anki: **Tools → Add-ons → Open Add-ons Fold
 
 ### 2. Install the Addon
 
-Copy the entire `Anki Context Shuffler` folder into the `addons21` directory.
+Copy the entire `Context Shuffler` folder into the `addons21` directory.
 
 ### 3. Restart Anki
 
@@ -48,7 +48,7 @@ Close and reopen Anki for the addon to load.
 
 ## Configuration
 
-Open the settings dialog from **Tools → Anki Context Shuffler Settings...**
+Open the settings dialog from **Tools → Context Shuffler Settings...**
 
 ### Settings Overview
 
@@ -103,7 +103,7 @@ If your note type uses different field names, update them in the settings dialog
 
 By default, the addon only applies to the "Default" deck. To enable it for other decks:
 
-1. Open **Tools → Anki Context Shuffler Settings...**
+1. Open **Tools → Context Shuffler Settings...**
 2. In the **Enabled Decks** field, enter deck names (one per line)
 3. Leave the field empty to apply to all decks
 
@@ -118,7 +118,7 @@ Spanish::Verbs
 
 Generated variations are stored in `cache.db` (SQLite) in the addon's directory. To clear all cached variations:
 
-1. Open **Tools → Anki Context Shuffler Settings...**
+1. Open **Tools → Context Shuffler Settings...**
 2. Click **Purge Cache**
 
 This is useful if you want to regenerate all sentences with a new model or updated system prompt.

@@ -25,7 +25,7 @@ class SettingsDialog(QDialog):
         self.addon_name = addon_name
         self.config_data = mw.addonManager.getConfig(addon_name) or {}
 
-        self.setWindowTitle("Anki Context Shuffler Settings")
+        self.setWindowTitle("Context Shuffler Settings")
         self.setMinimumWidth(500)
 
         self._setup_ui()
@@ -36,7 +36,7 @@ class SettingsDialog(QDialog):
         form_layout = QFormLayout()
         form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        self.enabled_check = QCheckBox("Enable Anki Context Shuffler")
+        self.enabled_check = QCheckBox("Enable Context Shuffler")
         self.enabled_check.setToolTip(TOOLTIPS["enabled"])
         form_layout.addRow(self.enabled_check)
 

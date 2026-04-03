@@ -1,5 +1,5 @@
 """
-Anki Context Shuffler
+Context Shuffler
 Intercepts card rendering and replaces example sentences with LLM-generated variations.
 """
 
@@ -79,7 +79,7 @@ def on_card_will_show(text: str, card: "anki.cards.Card", kind: str) -> str:
         # Trigger the background generation
         def on_success(card_id: int, original: str, generated: str) -> None:
             cache_manager.save_variation(card_id, original, generated)
-            tooltip("ACS: Context Updated", period=1000)
+            tooltip("CS: Context Updated", period=1000)
 
         llm_worker.trigger_generation(
             card_id=card.id,
@@ -120,7 +120,7 @@ def on_reviewer_init(reviewer) -> None:
         try:
             provider = OllamaProvider(base_url)
             provider.warm_up(model, keep_alive)
-            mw.taskman.run_on_main(lambda: tooltip("ACS: Warm-up sent", period=1500))
+            mw.taskman.run_on_main(lambda: tooltip("CS: Warm-up sent", period=1500))
         except Exception:
             pass
 
@@ -129,7 +129,7 @@ def on_reviewer_init(reviewer) -> None:
 
 
 def setup_menu() -> None:
-    action = QAction("Anki Context Shuffler Settings...", mw)
+    action = QAction("Context Shuffler Settings...", mw)
     qconnect(action.triggered, on_settings_clicked)
     mw.form.menuTools.addAction(action)
 
