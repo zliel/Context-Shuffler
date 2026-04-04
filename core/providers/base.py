@@ -27,3 +27,7 @@ class LLMProvider(ABC):
     def provider_name(self) -> str:
         """Human-readable name for this provider."""
         pass
+
+    def warm_up(self, model: str, keep_alive: int = 0) -> bool:
+        """Warm up the model. Override in subclass if supported."""
+        return True

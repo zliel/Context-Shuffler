@@ -2,11 +2,12 @@
   "enabled": true,
   "target_field": "TargetWord",
   "context_field": "ExampleSentence",
-  "ollama_url": "http://localhost:11434/api/generate",
   "model": "qwen3.5:4b",
+  "provider": "ollama",
+  "base_url": "http://localhost:11434",
   "system_prompt": "You are a linguistics expert. Give another sentence using the target word such that the target word itself has the same meaning or grammatical meaning (i.e. if in the original sentence \"mirror\" is used as a verb, use it as a verb in the new sentence, and the same for if it's used as a noun, etc.), but with different surrounding contexts, while staying strictly in the ORIGINAL LANGUAGE (i.e. if the original is in Japanese, then the output sentence should ONLY be in japanese, same for spanish, english, any other language). Ensure the target word itself remains unchanged but the surrounding sentence is at least somewhat different, but in the ORIGINAL LANGUAGE. Output ONLY the new sentence. Do not include notes, explanations, or introductory text. Wrap the target word in surrounding <u> tags to underline it.",
   "temperature": 0.7,
-  "enabled_decks": [
-    "Default"
-  ]
+  "max_tokens": 150,
+  "keep_alive": 0,
+  "enabled_decks": []
 }
