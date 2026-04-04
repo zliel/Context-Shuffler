@@ -8,7 +8,7 @@ from aqt import mw, gui_hooks
 from aqt.qt import QAction, qconnect
 from aqt.utils import tooltip
 from .core import cache_manager
-from .core.providers.ollama import OllamaProvider
+from .core.providers import get_provider
 from .workers import llm_worker
 
 # Initialize the cache database once upon startup
@@ -111,15 +111,16 @@ def on_reviewer_init(reviewer) -> None:
     if not config.get("enabled", True):
         return
 
+    provider_type = config.get("provider", "ollama")
     model = config.get("model", "qwen3-vl:8b-instruct")
     keep_alive = config.get("keep_alive", 0)
-    url = config.get("ollama_url", "http://localhost:11434/api/generate")
-    base_url = "/".join(url.split("/")[:-1])
+    base_url = config.get("base_url", "http://localhost:11434")
 
     def warm_up_task():
         try:
-            provider = OllamaProvider(base_url)
-            provider.warm_up(model, keep_alive)
+            provider = get_provider(provider_type, base_url)
+            if hasattr(provider, "warm_up"):
+                provider.warm_up(model, keep_alive)
             mw.taskman.run_on_main(lambda: tooltip("CS: Warm-up sent", period=1500))
         except Exception:
             pass
