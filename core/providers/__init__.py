@@ -1,17 +1,26 @@
 from typing import Optional
 from .base import LLMProvider
 from .ollama import OllamaProvider
+from .openai_compatible import OpenAICompatibleProvider
 
 PROVIDERS = {
     "ollama": OllamaProvider,
+    "openai": OpenAICompatibleProvider,
 }
 
 PROVIDER_DEFAULTS = {
     "ollama": "http://localhost:11434",
+    "openai": "http://localhost:8080",
 }
 
 PROVIDER_NAMES = {
     "ollama": "Ollama",
+    "openai": "OpenAI-Compatible (vLLM, LM Studio, llama.cpp)",
+}
+
+PROVIDER_ENDPOINTS = {
+    "ollama": "/api/generate",
+    "openai": "/v1/chat/completions",
 }
 
 
