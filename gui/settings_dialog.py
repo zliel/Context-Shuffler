@@ -2,20 +2,24 @@ from aqt import mw
 from aqt.qt import *
 from aqt.utils import showInfo, askUser, tooltip
 from ..core import cache_manager
-from ..core.providers.ollama import OllamaProvider
+from ..core.providers import get_provider, PROVIDERS, PROVIDER_NAMES, PROVIDER_ENDPOINTS
+import threading
 
 
 TOOLTIPS = {
     "enabled": "Turn the add-on on or off. When disabled, cards will show their original sentence.",
     "target_field": "The name of the card field containing the word or phrase you want to vary (e.g., 'TargetWord'). Must match exactly.",
     "context_field": "The name of the card field containing the example sentence containing the target word (e.g., 'ExampleSentence').\nThis is the field used to populate the generated sentence.",
-    "ollama_url": "The URL for your local Ollama API server. Default: http://localhost:11434/api/generate",
-    "model": "The Ollama model to use for generating sentence variations. Download models with: ollama pull <model_name>",
+    "provider": "Select the LLM provider. Ollama uses its native API; OpenAI-Compatible works with vLLM, LM Studio, llama.cpp, etc.",
+    "base_url": "The base URL for your local LLM server.\nOllama default: http://localhost:11434\nLM Studio / llama.cpp default: http://localhost:1234",
+    "model": "The model to use for generating sentence variations.\n\nWarning: 'Thinking' models (e.g., Qwen3-30B, DeepSeek-R1) use extra context for reasoning and may need higher max_tokens or will fail to generate.",
+    "max_tokens": "Maximum number of tokens to generate. Higher values allow longer responses but take more time. For thinking models, you may need to increase this to 300-500.",
     "temperature": "Controls how creative the model is. Lower values (0.1-0.3) produce more predictable variations; higher values (0.7-1.0) produce more diverse, creative output. Defaults to 0.7",
-    "keep_alive": "How long to keep the model loaded in memory after each request. Set to 0 for Ollama's default behavior.",
+    "keep_alive": "How long to keep the model loaded in memory after each request. Set to 0 for default behavior.",
     "system_prompt": "Instructions that guide how the model generates sentences. Be specific about tone, style, or constraints you want.",
     "enabled_decks": "Only apply shuffling to these decks. Leave empty to apply to all decks. One deck name per line.",
     "purge_btn": "Delete all cached sentence variations. Use this after changing the system prompt or model to get fresh variations.",
+    "refresh_models": "Fetch the list of available models from the server.",
 }
 
 
@@ -57,31 +61,55 @@ class SettingsDialog(QDialog):
         labeled_field("Target Word Field:", self.target_edit, "target_field")
         labeled_field("Context Sentence Field:", self.context_edit, "context_field")
 
-        self.url_edit = QLineEdit()
+        self.provider_combo = QComboBox()
+        for provider_key, provider_name in PROVIDER_NAMES.items():
+            self.provider_combo.addItem(provider_name, provider_key)
+        self.provider_combo.currentIndexChanged.connect(self.on_provider_changed)
+        labeled_field("Provider:", self.provider_combo, "provider")
+
+        self.base_url_edit = QLineEdit()
+        labeled_field("Base URL:", self.base_url_edit, "base_url")
+
         self.model_combo = QComboBox()
         self.model_combo.setEditable(True)
+
+        self.refresh_models_btn = QPushButton("Refresh")
+        self.refresh_models_btn.setToolTip(TOOLTIPS["refresh_models"])
+        self.refresh_models_btn.clicked.connect(self.on_refresh_models)
+
+        model_layout = QHBoxLayout()
+        model_layout.addWidget(self.model_combo, 1)
+        model_layout.addWidget(self.refresh_models_btn)
+
+        labeled_field("Model:", model_layout, "model")
+
+        self.model_warning_label = QLabel(
+            "Warning: Avoid 'thinking' models (e.g., Qwen3-30G, DeepSeek-R1) - they may fail to generate due to high context usage."
+        )
+        self.model_warning_label.setWordWrap(True)
+        self.model_warning_label.setMaximumHeight(40)
+        self.model_warning_label.setStyleSheet("color: #cc6600; font-size: 10pt;")
+        form_layout.addRow("", self.model_warning_label)
+
         self.temp_spin = QDoubleSpinBox()
         self.temp_spin.setRange(0.0, 1.0)
         self.temp_spin.setSingleStep(0.1)
+
+        self.max_tokens_spin = QSpinBox()
+        self.max_tokens_spin.setRange(50, 4096)
+        self.max_tokens_spin.setSingleStep(50)
+        self.max_tokens_spin.setValue(150)
 
         self.keep_alive_spin = QSpinBox()
         self.keep_alive_spin.setRange(0, 60)
         self.keep_alive_spin.setSuffix(" min (0 = use default)")
 
-        self.test_conn_btn = QPushButton("Test Connection")
-        self.test_conn_btn.clicked.connect(self.on_test_connection)
-
-        conn_layout = QHBoxLayout()
-        conn_layout.addWidget(self.url_edit)
-        conn_layout.addWidget(self.test_conn_btn)
-
-        labeled_field("Ollama API URL:", conn_layout, "ollama_url")
-        labeled_field("Model:", self.model_combo, "model")
         labeled_field("Temperature:", self.temp_spin, "temperature")
+        labeled_field("Max Tokens:", self.max_tokens_spin, "max_tokens")
         labeled_field("Keep Alive:", self.keep_alive_spin, "keep_alive")
 
         self.prompt_edit = QPlainTextEdit()
-        self.prompt_edit.setMaximumHeight(80)
+        self.prompt_edit.setMaximumHeight(160)
         labeled_field("System Prompt:", self.prompt_edit, "system_prompt")
 
         self.decks_edit = QPlainTextEdit()
@@ -100,7 +128,6 @@ class SettingsDialog(QDialog):
         self.purge_btn.clicked.connect(self.on_purge_clicked)
         labeled_field("Maintenance:", self.purge_btn, "purge_btn")
 
-        # Standard ok/cancel
         self.btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -111,40 +138,106 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.btn_box)
         self.setLayout(layout)
 
+    def _get_current_provider_key(self) -> str:
+        return self.provider_combo.currentData()
+
+    def _get_current_endpoint(self) -> str:
+        provider_key = self._get_current_provider_key()
+        return PROVIDER_ENDPOINTS.get(provider_key, "/api/generate")
+
+    def _get_base_url(self) -> str:
+        return self.base_url_edit.text().strip().rstrip("/")
+
+    def _get_full_url(self) -> str:
+        base = self._get_base_url()
+        endpoint = self._get_current_endpoint()
+        return f"{base}{endpoint}"
+
+    def on_provider_changed(self):
+        provider_key = self._get_current_provider_key()
+        from ..core.providers import PROVIDER_DEFAULTS
+
+        default_url = PROVIDER_DEFAULTS.get(provider_key, "http://localhost:11434")
+        current_url = self._get_base_url()
+
+        old_default = PROVIDER_DEFAULTS.get("ollama", "http://localhost:11434")
+        if current_url == old_default or not current_url:
+            self.base_url_edit.setText(default_url)
+
+        self._start_background_model_load()
+
     def _load_config(self):
-        """Pre-populates the UI slots with Anki's tracked JSON state"""
         self.enabled_check.setChecked(self.config_data.get("enabled", True))
         self.target_edit.setText(self.config_data.get("target_field", "TargetWord"))
         self.context_edit.setText(
             self.config_data.get("context_field", "ExampleSentence")
         )
-        self.url_edit.setText(
-            self.config_data.get("ollama_url", "http://localhost:11434/api/generate")
+
+        provider = self.config_data.get("provider", "ollama")
+        provider_index = self.provider_combo.findData(provider)
+        if provider_index >= 0:
+            self.provider_combo.setCurrentIndex(provider_index)
+
+        self.base_url_edit.setText(
+            self.config_data.get("base_url", "http://localhost:11434")
         )
+
         self.temp_spin.setValue(self.config_data.get("temperature", 0.7))
+        self.max_tokens_spin.setValue(self.config_data.get("max_tokens", 150))
         self.keep_alive_spin.setValue(self.config_data.get("keep_alive", 0))
         self.prompt_edit.setPlainText(self.config_data.get("system_prompt", ""))
 
         saved_model = self.config_data.get("model", "llama3")
-        self._populate_models(saved_model)
+        self.model_combo.setCurrentText(saved_model)
 
         decks = self.config_data.get("enabled_decks", ["Default"])
         self.decks_edit.setPlainText("\n".join(decks))
 
-    def _get_base_url(self) -> str:
-        """Extract base URL from the full API URL."""
-        url = self.url_edit.text().strip()
-        for suffix in ("/api/generate", "/api/chat", "/v1/chat/completions"):
-            if url.endswith(suffix):
-                return url[: -len(suffix)]
-        return url.rstrip("/")
+        self._start_background_model_load()
+
+    def _start_background_model_load(self):
+        self.model_combo.clear()
+        self.model_combo.addItem("(loading models...)")
+
+        base_url = self._get_base_url()
+        provider_key = self._get_current_provider_key()
+        saved_model = self.config_data.get("model", "")
+
+        def background_load():
+            try:
+                provider = get_provider(provider_key, base_url)
+                models = provider.list_models()
+                mw.taskman.run_on_main(
+                    lambda: self._on_models_loaded(models, saved_model)
+                )
+            except Exception:
+                mw.taskman.run_on_main(
+                    lambda: self._on_models_loaded([], saved_model, error=True)
+                )
+
+        thread = threading.Thread(target=background_load, daemon=True)
+        thread.start()
+
+    def _on_models_loaded(self, models: list, selected_model: str, error: bool = False):
+        self.model_combo.clear()
+        if error or not models:
+            self.model_combo.addItem("(connection failed)")
+            if selected_model:
+                self.model_combo.setCurrentText(selected_model)
+        else:
+            for model in sorted(models):
+                self.model_combo.addItem(model)
+            if selected_model and selected_model in models:
+                self.model_combo.setCurrentText(selected_model)
+            elif models:
+                self.model_combo.setCurrentIndex(0)
 
     def _populate_models(self, selected_model: str = ""):
-        """Fetch available models from Ollama and populate the dropdown."""
         self.model_combo.clear()
         try:
             base_url = self._get_base_url()
-            provider = OllamaProvider(base_url)
+            provider_key = self._get_current_provider_key()
+            provider = get_provider(provider_key, base_url)
             models = provider.list_models()
             if models:
                 for model in sorted(models):
@@ -161,44 +254,10 @@ class SettingsDialog(QDialog):
         if selected_model and self.model_combo.findText(selected_model) == -1:
             self.model_combo.setCurrentText(selected_model)
 
-    def on_test_connection(self):
-        """Test the Ollama connection and show results."""
-        self.test_conn_btn.setEnabled(False)
-        self.test_conn_btn.setText("Testing...")
-        QApplication.processEvents()
-
-        try:
-            base_url = self._get_base_url()
-            provider = OllamaProvider(base_url)
-            models = provider.list_models()
-
-            if models:
-                showInfo(
-                    f"Connection successful!\n\n"
-                    f"Found {len(models)} model(s):\n"
-                    + "\n".join(f"  - {m}" for m in sorted(models)),
-                    title="Test Connection",
-                )
-                self._populate_models(self.model_combo.currentText())
-            else:
-                showInfo(
-                    "Connected to Ollama, but no models were found.\n\n"
-                    "Please pull a model first: ollama pull <model_name>",
-                    title="Test Connection",
-                )
-        except Exception as e:
-            showInfo(
-                f"Connection failed!\n\n"
-                f"Error: {e}\n\n"
-                f"Make sure Ollama is running at:\n{self.url_edit.text()}",
-                title="Test Connection",
-            )
-        finally:
-            self.test_conn_btn.setEnabled(True)
-            self.test_conn_btn.setText("Test Connection")
+    def on_refresh_models(self):
+        self._populate_models(self.model_combo.currentText())
 
     def on_purge_clicked(self):
-        """Asks for confirmation and then wipes the cache database."""
         if askUser(
             "Are you sure you want to purge all AI-generated variations from the cache? This cannot be undone."
         ):
@@ -206,18 +265,17 @@ class SettingsDialog(QDialog):
             showInfo("Cache database has been cleared.")
 
     def on_accept(self):
-        """Grabs all string inputs and dynamically forces a config overwrite."""
         self.config_data["enabled"] = self.enabled_check.isChecked()
         self.config_data["target_field"] = self.target_edit.text()
         self.config_data["context_field"] = self.context_edit.text()
 
-        url = self.url_edit.text()
-        if not url.endswith("/api/generate"):
-            url = url.rstrip("/") + "/api/generate"
-        self.config_data["ollama_url"] = url
+        self.config_data["provider"] = self._get_current_provider_key()
+        self.config_data["base_url"] = self._get_base_url()
+        self.config_data["url"] = self._get_full_url()
 
         self.config_data["model"] = self.model_combo.currentText()
         self.config_data["temperature"] = self.temp_spin.value()
+        self.config_data["max_tokens"] = self.max_tokens_spin.value()
         self.config_data["keep_alive"] = self.keep_alive_spin.value()
         self.config_data["system_prompt"] = self.prompt_edit.toPlainText()
 
