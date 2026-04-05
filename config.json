@@ -9,5 +9,8 @@
   "temperature": 0.7,
   "max_tokens": 150,
   "keep_alive": 0,
-  "enabled_decks": []
+  "enabled_decks": [],
+  "shuffling_strategy": "always",
+  "lapse_recovery_enabled": true,
+  "lapse_recovery_duration": 3
 }
