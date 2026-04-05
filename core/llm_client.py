@@ -11,6 +11,7 @@ def generate_variation(
     target: str,
     sentence: str,
     temp: float,
+    max_tokens: int = 150,
     keep_alive: int = 0,
 ) -> str:
     """
@@ -22,9 +23,9 @@ def generate_variation(
     )
 
     if "/v1/chat/completions" in url:
-        return _generate_openai_compatible(url, model, system_prompt, prompt, temp)
+        return _generate_openai_compatible(url, model, system_prompt, prompt, temp, max_tokens)
     else:
-        return _generate_ollama(url, model, system_prompt, prompt, temp, keep_alive)
+        return _generate_ollama(url, model, system_prompt, prompt, temp, max_tokens, keep_alive)
 
 
 def _generate_ollama(
@@ -33,6 +34,7 @@ def _generate_ollama(
     system_prompt: str,
     prompt: str,
     temperature: float,
+    max_tokens: int = 150,
     keep_alive: int = 0,
 ) -> str:
     payload = {
@@ -41,7 +43,7 @@ def _generate_ollama(
         "prompt": prompt,
         "stream": False,
         "think": False,
-        "options": {"temperature": temperature, "num_predict": 150},
+        "options": {"temperature": temperature, "num_predict": max_tokens},
     }
 
     if keep_alive > 0:
@@ -76,6 +78,7 @@ def _generate_openai_compatible(
     system_prompt: str,
     prompt: str,
     temperature: float,
+    max_tokens: int = 150,
 ) -> str:
     messages = []
     if system_prompt:
@@ -86,7 +89,7 @@ def _generate_openai_compatible(
         "model": model,
         "messages": messages,
         "temperature": temperature,
-        # "max_tokens": 150,
+        "max_tokens": max_tokens,
         "stream": False,
     }
 

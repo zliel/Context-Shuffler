@@ -20,6 +20,9 @@ TOOLTIPS = {
     "enabled_decks": "Only apply shuffling to these decks. Leave empty to apply to all decks. One deck name per line.",
     "purge_btn": "Delete all cached sentence variations. Use this after changing the system prompt or model to get fresh variations.",
     "refresh_models": "Fetch the list of available models from the server.",
+    "shuffling_strategy": "Choose how sentences are shuffled.\n\nAlways: Always show a shuffled sentence.\n\nEase-Based: Shuffle frequency adjusts based on how well you know the card (Hard = less shuffling, Easy = more shuffling).",
+    "lapse_recovery_enabled": "When enabled, if you mark a card 'Again', the add-on will show the original sentence for the next few reviews to help re-anchor the primary memory.",
+    "lapse_recovery_duration": "Number of reviews to show the original sentence after a lapse before resuming shuffling.",
 }
 
 
@@ -119,14 +122,44 @@ class SettingsDialog(QDialog):
         )
         labeled_field("Enabled Decks:", self.decks_edit, "enabled_decks")
 
+        # --- Shuffling Strategy Section ---
         line2 = QFrame()
         line2.setFrameShape(QFrame.Shape.HLine)
         line2.setFrameShadow(QFrame.Shadow.Sunken)
         form_layout.addRow(line2)
 
+        strategy_label = QLabel("<b>Shuffling Strategy</b>")
+        form_layout.addRow(strategy_label)
+
+        self.strategy_combo = QComboBox()
+        self.strategy_combo.addItem("Always Shuffle", "always")
+        self.strategy_combo.addItem("Ease-Based Shuffling", "ease-based")
+        self.strategy_combo.setToolTip(TOOLTIPS["shuffling_strategy"])
+        labeled_field("Strategy:", self.strategy_combo, "shuffling_strategy")
+
+        # --- Lapse Recovery Section ---
+        self.lapse_recovery_check = QCheckBox("Enable Lapse Recovery")
+        self.lapse_recovery_check.setToolTip(TOOLTIPS["lapse_recovery_enabled"])
+        form_layout.addRow(self.lapse_recovery_check)
+
+        self.lapse_duration_spin = QSpinBox()
+        self.lapse_duration_spin.setRange(1, 10)
+        self.lapse_duration_spin.setValue(3)
+        self.lapse_duration_spin.setSuffix(" reviews")
+        labeled_field("Recovery Duration:", self.lapse_duration_spin, "lapse_recovery_duration")
+
+        line3 = QFrame()
+        line3.setFrameShape(QFrame.Shape.HLine)
+        line3.setFrameShadow(QFrame.Shadow.Sunken)
+        form_layout.addRow(line3)
+
         self.purge_btn = QPushButton("Purge All Cached Variations")
         self.purge_btn.clicked.connect(self.on_purge_clicked)
         labeled_field("Maintenance:", self.purge_btn, "purge_btn")
+
+        self.purge_lapse_btn = QPushButton("Clear Lapse Recovery Data")
+        self.purge_lapse_btn.clicked.connect(self.on_purge_lapse_clicked)
+        labeled_field("", self.purge_lapse_btn, "purge_btn")
 
         self.btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -137,6 +170,14 @@ class SettingsDialog(QDialog):
         layout.addLayout(form_layout)
         layout.addWidget(self.btn_box)
         self.setLayout(layout)
+
+    def on_purge_lapse_clicked(self):
+        """Clears all lapse recovery tracking data."""
+        if askUser(
+            "Are you sure you want to clear all lapse recovery data? This will resume shuffling for all cards in recovery mode."
+        ):
+            cache_manager.clear_all_lapse_data()
+            showInfo("Lapse recovery data has been cleared.")
 
     def _get_current_provider_key(self) -> str:
         return self.provider_combo.currentData()
@@ -190,8 +231,20 @@ class SettingsDialog(QDialog):
         saved_model = self.config_data.get("model", "llama3")
         self.model_combo.setCurrentText(saved_model)
 
-        decks = self.config_data.get("enabled_decks", ["Default"])
+        decks = self.config_data.get("enabled_decks", [])
         self.decks_edit.setPlainText("\n".join(decks))
+
+        strategy = self.config_data.get("shuffling_strategy", "always")
+        strategy_index = self.strategy_combo.findData(strategy)
+        if strategy_index >= 0:
+            self.strategy_combo.setCurrentIndex(strategy_index)
+
+        self.lapse_recovery_check.setChecked(
+            self.config_data.get("lapse_recovery_enabled", True)
+        )
+        self.lapse_duration_spin.setValue(
+            self.config_data.get("lapse_recovery_duration", 3)
+        )
 
         self._start_background_model_load()
 
@@ -281,6 +334,10 @@ class SettingsDialog(QDialog):
 
         raw_decks = self.decks_edit.toPlainText().split("\n")
         self.config_data["enabled_decks"] = [d.strip() for d in raw_decks if d.strip()]
+
+        self.config_data["shuffling_strategy"] = self.strategy_combo.currentData()
+        self.config_data["lapse_recovery_enabled"] = self.lapse_recovery_check.isChecked()
+        self.config_data["lapse_recovery_duration"] = self.lapse_duration_spin.value()
 
         mw.addonManager.writeConfig(self.addon_name, self.config_data)
         self.accept()
