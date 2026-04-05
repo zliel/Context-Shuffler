@@ -37,15 +37,39 @@ def should_shuffle(card, config: dict) -> bool:
 
     elif strategy == "ease-based":
         ease = last_card_ease.get(card.id, 0)
-        factor = card.factor if card.factor else 2500  # Default factor
+        factor = card.factor if card.factor else 2500
 
+        # Very hard cards (factor < 1300): rarely shuffle
+        if factor < 1300:
+            if ease == 1:
+                return False
+            return random.random() < 0.1
+
+        # Hard cards (1300 <= factor < 2000): occasionally shuffle
+        if factor < 2000:
+            if ease == 1:
+                return False
+            elif ease == 2:
+                return random.random() < 0.15
+            return random.random() < 0.3
+
+        # Normal cards (2000 <= factor < 2600): standard shuffling
+        if factor < 2600:
+            if ease == 1:
+                return False
+            elif ease == 2:
+                return random.random() < 0.25
+            elif ease == 3:
+                return random.random() < 0.5
+            else:
+                return random.random() < 0.75
+
+        # Easy cards (factor >= 2600): more frequent shuffling
         if ease == 1:
-            return False
+            return random.random() < 0.3
         elif ease == 2:
-            return random.random() < 0.25
-        elif ease == 3:
             return random.random() < 0.5
-        elif ease == 4:
+        elif ease == 3:
             return random.random() < 0.75
         else:
             return True
