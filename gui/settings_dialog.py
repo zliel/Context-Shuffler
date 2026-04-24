@@ -188,7 +188,7 @@ class SettingsDialog(QDialog):
     def _on_browse_cache_clicked(self):
         from .cache_browser import show_cache_browser
 
-        show_cache_browser(self)
+        show_cache_browser(self, self.addon_name)
 
     def _get_current_provider_key(self) -> str:
         return self.provider_combo.currentData()

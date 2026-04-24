@@ -1,12 +1,14 @@
 from aqt import mw
 from aqt.qt import *
-from aqt.utils import askUser, showInfo
+from aqt.utils import askUser, showInfo, tooltip
 from ..core import cache_manager
+from ..workers import llm_worker
 
 
 class CacheBrowser(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, addon_name=None):
         super().__init__(parent)
+        self.addon_name = addon_name or "context_shuffler"
         self.setWindowTitle("Context Shuffler — Cache Browser")
         self.setMinimumSize(700, 500)
         self.resize(800, 600)
@@ -46,6 +48,11 @@ class CacheBrowser(QDialog):
         self.delete_btn.setEnabled(False)
         btn_layout.addWidget(self.delete_btn)
 
+        self.regenerate_btn = QPushButton("Regenerate")
+        self.regenerate_btn.clicked.connect(self._on_regenerate_clicked)
+        self.regenerate_btn.setEnabled(False)
+        btn_layout.addWidget(self.regenerate_btn)
+
         self.delete_all_btn = QPushButton("Delete All")
         self.delete_all_btn.clicked.connect(self._on_delete_all_clicked)
         btn_layout.addWidget(self.delete_all_btn)
@@ -64,8 +71,14 @@ class CacheBrowser(QDialog):
         layout.addLayout(btn_layout)
         self.setLayout(layout)
 
-        # Enable delete when row selected
+        # Enable buttons when row selected
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
+
+        # Context menu
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
+        self.regenerate_action = QAction("Regenerate", self)
+        self.regenerate_action.triggered.connect(self._on_regenerate_clicked)
+        self.table.addAction(self.regenerate_action)
 
     def _load_data(self):
         self.all_data = cache_manager.get_all_variations()
@@ -94,7 +107,10 @@ class CacheBrowser(QDialog):
         self._display_data(filtered)
 
     def _on_selection_changed(self):
-        self.delete_btn.setEnabled(len(self.table.selectedItems()) > 0)
+        selected_rows = len(set(item.row() for item in self.table.selectedItems()))
+        self.delete_btn.setEnabled(selected_rows > 0)
+        self.regenerate_btn.setEnabled(selected_rows == 1)
+        self.regenerate_action.setEnabled(selected_rows == 1)
 
     def _on_delete_clicked(self):
         rows = sorted(
@@ -109,6 +125,51 @@ class CacheBrowser(QDialog):
                 cache_manager.delete_variation(card_id)
             self._load_data()
             showInfo(f"Deleted {len(rows)} variation(s).")
+
+    def _on_regenerate_clicked(self):
+        rows = sorted(set(item.row() for item in self.table.selectedItems()))
+        if len(rows) != 1:
+            return
+
+        row = rows[0]
+        card_id = int(self.table.item(row, 0).text())
+
+        card = mw.col.get_card(card_id)
+        if not card:
+            showInfo("Could not find card in collection.")
+            return
+
+        note = card.note()
+        config = mw.addonManager.getConfig(self.addon_name) or {}
+
+        target_field = config.get("target_field", "TargetWord")
+        context_field = config.get("context_field", "ExampleSentence")
+
+        if target_field not in note or context_field not in note:
+            showInfo("Card is missing target or context field.")
+            return
+
+        target_word = note[target_field]
+        original_sentence = note[context_field]
+
+        if not target_word or not original_sentence:
+            showInfo("Card is missing target word or context sentence.")
+            return
+
+        def on_success(card_id: int, original: str, generated: str) -> None:
+            cache_manager.save_variation(card_id, original, generated)
+            tooltip("CS: Variation regenerated", period=1500)
+            self._load_data()
+
+        llm_worker.trigger_generation(
+            card_id=card_id,
+            target=target_word,
+            sentence=original_sentence,
+            config=config,
+            on_success_callback=on_success,
+        )
+
+        tooltip("CS: Regenerating...", period=1000)
 
     def _on_delete_all_clicked(self):
         if askUser(
@@ -145,6 +206,6 @@ class CacheBrowser(QDialog):
         showInfo(f"Exported {len(current_data)} rows to {path}")
 
 
-def show_cache_browser(parent=None):
-    dialog = CacheBrowser(parent)
+def show_cache_browser(parent=None, addon_name=None):
+    dialog = CacheBrowser(parent, addon_name)
     dialog.exec()
