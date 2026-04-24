@@ -133,3 +133,22 @@ def clear_all_lapse_data() -> None:
     """Clears all lapse tracking data."""
     with _get_connection() as conn:
         conn.execute("DELETE FROM lapse_tracking")
+
+
+def get_all_variations() -> list[tuple[int, str]]:
+    """
+    Fetches all cached variations from the database.
+    Returns list of (card_id, variation_text) tuples.
+    """
+    with _get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT card_id, variation_text FROM variations ORDER BY card_id"
+        )
+        return cursor.fetchall()
+
+
+def delete_variation(card_id: int) -> None:
+    """Deletes a single cached variation by card_id."""
+    with _get_connection() as conn:
+        conn.execute("DELETE FROM variations WHERE card_id = ?", (card_id,))

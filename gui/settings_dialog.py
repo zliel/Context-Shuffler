@@ -146,7 +146,9 @@ class SettingsDialog(QDialog):
         self.lapse_duration_spin.setRange(1, 10)
         self.lapse_duration_spin.setValue(3)
         self.lapse_duration_spin.setSuffix(" reviews")
-        labeled_field("Recovery Duration:", self.lapse_duration_spin, "lapse_recovery_duration")
+        labeled_field(
+            "Recovery Duration:", self.lapse_duration_spin, "lapse_recovery_duration"
+        )
 
         line3 = QFrame()
         line3.setFrameShape(QFrame.Shape.HLine)
@@ -160,6 +162,10 @@ class SettingsDialog(QDialog):
         self.purge_lapse_btn = QPushButton("Clear Lapse Recovery Data")
         self.purge_lapse_btn.clicked.connect(self.on_purge_lapse_clicked)
         labeled_field("", self.purge_lapse_btn, "purge_btn")
+
+        self.browse_cache_btn = QPushButton("Browse Cache...")
+        self.browse_cache_btn.clicked.connect(self._on_browse_cache_clicked)
+        labeled_field("", self.browse_cache_btn, "purge_btn")
 
         self.btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -178,6 +184,11 @@ class SettingsDialog(QDialog):
         ):
             cache_manager.clear_all_lapse_data()
             showInfo("Lapse recovery data has been cleared.")
+
+    def _on_browse_cache_clicked(self):
+        from .cache_browser import show_cache_browser
+
+        show_cache_browser(self, self.addon_name)
 
     def _get_current_provider_key(self) -> str:
         return self.provider_combo.currentData()
@@ -336,7 +347,9 @@ class SettingsDialog(QDialog):
         self.config_data["enabled_decks"] = [d.strip() for d in raw_decks if d.strip()]
 
         self.config_data["shuffling_strategy"] = self.strategy_combo.currentData()
-        self.config_data["lapse_recovery_enabled"] = self.lapse_recovery_check.isChecked()
+        self.config_data["lapse_recovery_enabled"] = (
+            self.lapse_recovery_check.isChecked()
+        )
         self.config_data["lapse_recovery_duration"] = self.lapse_duration_spin.value()
 
         mw.addonManager.writeConfig(self.addon_name, self.config_data)
