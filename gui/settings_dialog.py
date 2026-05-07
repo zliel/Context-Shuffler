@@ -8,6 +8,7 @@ import threading
 
 TOOLTIPS = {
     "enabled": "Turn the add-on on or off. When disabled, cards will show their original sentence.",
+    "hotkey": "Keyboard shortcut to toggle variation generation on/off. Use keys like Ctrl+Shift+C, Alt+Shift+C, etc.",
     "target_field": "The name of the card field containing the word or phrase you want to vary (e.g., 'TargetWord'). Must match exactly.",
     "context_field": "The name of the card field containing the example sentence containing the target word (e.g., 'ExampleSentence').\nThis is the field used to populate the generated sentence.",
     "provider": "Select the LLM provider. Ollama uses its native API; OpenAI-Compatible works with vLLM, LM Studio, llama.cpp, etc.",
@@ -43,21 +44,24 @@ class SettingsDialog(QDialog):
         form_layout = QFormLayout()
         form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        self.enabled_check = QCheckBox("Enable Context Shuffler")
-        self.enabled_check.setToolTip(TOOLTIPS["enabled"])
-        form_layout.addRow(self.enabled_check)
-
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        form_layout.addRow(line)
-
         def labeled_field(label_text: str, widget, tooltip_key: str) -> QLabel:
             label = QLabel(label_text)
             label.setToolTip(TOOLTIPS[tooltip_key])
             label.setCursor(Qt.CursorShape.PointingHandCursor)
             form_layout.addRow(label, widget)
             return label
+
+        self.enabled_check = QCheckBox("Enable Context Shuffler")
+        self.enabled_check.setToolTip(TOOLTIPS["enabled"])
+        form_layout.addRow(self.enabled_check)
+
+        self.hotkey_edit = QLineEdit()
+        labeled_field("Toggle Hotkey:", self.hotkey_edit, "hotkey")
+
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        form_layout.addRow(line)
 
         self.target_edit = QLineEdit()
         self.context_edit = QLineEdit()
@@ -220,6 +224,7 @@ class SettingsDialog(QDialog):
 
     def _load_config(self):
         self.enabled_check.setChecked(self.config_data.get("enabled", True))
+        self.hotkey_edit.setText(self.config_data.get("hotkey", "Ctrl+Shift+C"))
         self.target_edit.setText(self.config_data.get("target_field", "TargetWord"))
         self.context_edit.setText(
             self.config_data.get("context_field", "ExampleSentence")
@@ -330,6 +335,7 @@ class SettingsDialog(QDialog):
 
     def on_accept(self):
         self.config_data["enabled"] = self.enabled_check.isChecked()
+        self.config_data["hotkey"] = self.hotkey_edit.text().strip()
         self.config_data["target_field"] = self.target_edit.text()
         self.config_data["context_field"] = self.context_edit.text()
 
@@ -353,6 +359,9 @@ class SettingsDialog(QDialog):
         self.config_data["lapse_recovery_duration"] = self.lapse_duration_spin.value()
 
         mw.addonManager.writeConfig(self.addon_name, self.config_data)
+        # Update the hotkey after saving
+        if hasattr(mw, "_cs_update_hotkey"):
+            mw._cs_update_hotkey()
         self.accept()
 
 
