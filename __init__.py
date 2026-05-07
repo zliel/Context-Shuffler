@@ -241,10 +241,31 @@ def toggle_enabled() -> None:
     state = "enabled" if config["enabled"] else "disabled"
     tooltip(f"CS: Variation generation {state}", period=1500)
 
+
+def update_hotkey() -> None:
+    """Update the hotkey shortcut from current config."""
+    config = mw.addonManager.getConfig(__name__) or {}
+    hotkey = config.get("hotkey", "Ctrl+Shift+C")
+
+    # Remove old shortcut if it exists
+    if hasattr(mw, "_cs_toggle_shortcut"):
+        mw._cs_toggle_shortcut.deleteLater()
+        del mw._cs_toggle_shortcut
+
+    # Register new shortcut
+    shortcut = QShortcut(QKeySequence(hotkey), mw)
+    qconnect(shortcut.activated, toggle_enabled)
+    mw._cs_toggle_shortcut = shortcut
+
+
 def setup_menu() -> None:
     action = QAction("Context Shuffler Settings...", mw)
     qconnect(action.triggered, on_settings_clicked)
     mw.form.menuTools.addAction(action)
+
+    # Register the hotkey and store update function for settings dialog to call
+    update_hotkey()
+    mw._cs_update_hotkey = update_hotkey
 
 
 gui_hooks.card_will_show.append(on_card_will_show)
