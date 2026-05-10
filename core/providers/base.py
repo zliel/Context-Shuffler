@@ -7,7 +7,14 @@ class LLMProvider(ABC):
 
     @abstractmethod
     def generate(
-        self, prompt: str, system_prompt: str, temperature: float, max_tokens: int
+        self,
+        prompt: str,
+        system_prompt: str,
+        temperature: float,
+        max_tokens: int,
+        model: str,
+        api_key: str = "",
+        keep_alive: int = 0,
     ) -> Optional[str]:
         """Generate a response from the LLM."""
         pass

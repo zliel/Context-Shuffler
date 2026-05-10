@@ -341,7 +341,6 @@ class SettingsDialog(QDialog):
 
         self.config_data["provider"] = self._get_current_provider_key()
         self.config_data["base_url"] = self._get_base_url()
-        self.config_data["url"] = self._get_full_url()
 
         self.config_data["model"] = self.model_combo.currentText()
         self.config_data["temperature"] = self.temp_spin.value()

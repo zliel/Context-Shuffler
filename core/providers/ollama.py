@@ -24,10 +24,12 @@ class OllamaProvider(LLMProvider):
         system_prompt: str,
         temperature: float,
         max_tokens: int,
+        model: str,
+        api_key: str = "",
         keep_alive: int = 0,
     ) -> Optional[str]:
         payload = {
-            "model": "",
+            "model": model,
             "system": system_prompt,
             "prompt": prompt,
             "stream": False,

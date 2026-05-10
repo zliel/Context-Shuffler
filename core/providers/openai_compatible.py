@@ -24,6 +24,8 @@ class OpenAICompatibleProvider(LLMProvider):
         system_prompt: str,
         temperature: float,
         max_tokens: int,
+        model: str,
+        api_key: str = "",
         keep_alive: int = 0,
     ) -> Optional[str]:
         messages = []
@@ -32,7 +34,7 @@ class OpenAICompatibleProvider(LLMProvider):
         messages.append({"role": "user", "content": prompt})
 
         payload = {
-            "model": "",
+            "model": model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
