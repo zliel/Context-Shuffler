@@ -53,7 +53,8 @@ class OpenAICompatibleProvider(LLMProvider):
                 result = json.loads(response.read().decode("utf-8"))
                 choices = result.get("choices", [])
                 if choices:
-                    return choices[0].get("message", {}).get("content", "").strip()
+                    raw = choices[0].get("message", {}).get("content", "").strip()
+                    return self.clean_response(raw) if raw else ""
                 return ""
         except (urllib.error.URLError, Exception):
             return None

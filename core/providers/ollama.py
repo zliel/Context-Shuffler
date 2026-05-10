@@ -50,7 +50,8 @@ class OllamaProvider(LLMProvider):
             opener = urllib.request.build_opener(proxy_handler)
             with opener.open(req, timeout=300) as response:
                 result = json.loads(response.read().decode("utf-8"))
-                return result.get("response", "").strip()
+                raw = result.get("response", "").strip()
+                return self.clean_response(raw) if raw else ""
         except (urllib.error.URLError, Exception):
             return None
 
