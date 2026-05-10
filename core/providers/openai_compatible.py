@@ -45,6 +45,8 @@ class OpenAICompatibleProvider(LLMProvider):
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, method="POST")
         req.add_header("Content-Type", "application/json")
+        if api_key:
+            req.add_header("Authorization", f"Bearer {api_key}")
 
         try:
             proxy_handler = urllib.request.ProxyHandler({})
