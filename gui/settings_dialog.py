@@ -2,7 +2,7 @@ from aqt import mw
 from aqt.qt import *
 from aqt.utils import showInfo, askUser, tooltip
 from ..core import cache_manager
-from ..core.providers import get_provider, PROVIDERS, PROVIDER_NAMES, PROVIDER_ENDPOINTS
+from ..core.providers import get_provider, PROVIDERS, PROVIDER_NAMES
 import threading
 
 
@@ -79,7 +79,7 @@ class SettingsDialog(QDialog):
 
         self.api_key_edit = QLineEdit()
         self.api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.api_key_edit.setPlaceholderText("Optional — for providers that require authentication")
+        self.api_key_edit.setPlaceholderText("Optional — for providers that require authentication. Stored unencrypted in Anki profile.")
         self._add_field(general_layout,"API Key:", self.api_key_edit, "api_key")
 
         self.model_combo = QComboBox()
@@ -166,6 +166,7 @@ class SettingsDialog(QDialog):
         self.keep_alive_spin = QSpinBox()
         self.keep_alive_spin.setRange(0, 60)
         self.keep_alive_spin.setSuffix(" min (0 = use default)")
+        self.keep_alive_spin.setValue(0)
 
         self._add_field(advanced_layout,"Temperature:", self.temp_spin, "temperature")
         self._add_field(advanced_layout,"Max Tokens:", self.max_tokens_spin, "max_tokens")
@@ -237,6 +238,7 @@ class SettingsDialog(QDialog):
         """Tests the LLM connection by calling list_models()."""
         base_url = self._get_base_url()
         provider_key = self._get_current_provider_key()
+        api_key = self.api_key_edit.text().strip()
 
         self.test_connection_btn.setEnabled(False)
         self.test_connection_btn.setText("Testing...")
@@ -244,7 +246,7 @@ class SettingsDialog(QDialog):
         def background_test():
             try:
                 provider = get_provider(provider_key, base_url)
-                models = provider.list_models()
+                models = provider.list_models(api_key=api_key)
                 mw.taskman.run_on_main(lambda: self._on_test_result(True, models, None))
             except Exception as e:
                 mw.taskman.run_on_main(lambda: self._on_test_result(False, None, str(e)))
@@ -271,17 +273,8 @@ class SettingsDialog(QDialog):
     def _get_current_provider_key(self) -> str:
         return self.provider_combo.currentData()
 
-    def _get_current_endpoint(self) -> str:
-        provider_key = self._get_current_provider_key()
-        return PROVIDER_ENDPOINTS.get(provider_key, "/api/generate")
-
     def _get_base_url(self) -> str:
         return self.base_url_edit.text().strip().rstrip("/")
-
-    def _get_full_url(self) -> str:
-        base = self._get_base_url()
-        endpoint = self._get_current_endpoint()
-        return f"{base}{endpoint}"
 
     def on_provider_changed(self):
         provider_key = self._get_current_provider_key()

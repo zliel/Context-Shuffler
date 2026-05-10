@@ -21,7 +21,7 @@ class LLMProvider(ABC):
         pass
 
     @abstractmethod
-    def list_models(self) -> list[str]:
+    def list_models(self, api_key: str = "") -> list[str]:
         """List available models. Returns empty list if not supported."""
         pass
 

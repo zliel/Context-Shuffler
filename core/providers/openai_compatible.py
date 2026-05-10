@@ -61,10 +61,13 @@ class OpenAICompatibleProvider(LLMProvider):
         except (urllib.error.URLError, Exception):
             return None
 
-    def list_models(self) -> list[str]:
+    def list_models(self, api_key: str = "") -> list[str]:
         try:
             url = f"{self.base_url}/v1/models"
             req = urllib.request.Request(url, method="GET")
+            req.add_header("Content-Type", "application/json")
+            if api_key:
+                req.add_header("Authorization", f"Bearer {api_key}")
             proxy_handler = urllib.request.ProxyHandler({})
             opener = urllib.request.build_opener(proxy_handler)
             with opener.open(req, timeout=10) as response:

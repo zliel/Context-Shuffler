@@ -77,7 +77,7 @@ class OllamaProvider(LLMProvider):
         except Exception:
             return False
 
-    def list_models(self) -> list[str]:
+    def list_models(self, api_key: str = "") -> list[str]:
         try:
             url = f"{self.base_url}/api/tags"
             req = urllib.request.Request(url, method="GET")
