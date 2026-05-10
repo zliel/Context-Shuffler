@@ -40,6 +40,13 @@ class SettingsDialog(QDialog):
         self._setup_ui()
         self._load_config()
 
+    def _add_field(self, layout: QFormLayout, label_text: str, widget, tooltip_key: str) -> QLabel:
+        label = QLabel(label_text)
+        label.setToolTip(TOOLTIPS[tooltip_key])
+        label.setCursor(Qt.CursorShape.PointingHandCursor)
+        layout.addRow(label, widget)
+        return label
+
     def _setup_ui(self):
         layout = QVBoxLayout()
         self.tab_widget = QTabWidget()
@@ -49,19 +56,12 @@ class SettingsDialog(QDialog):
         general_layout = QFormLayout()
         general_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        def labeled_field(label_text: str, widget, tooltip_key: str) -> QLabel:
-            label = QLabel(label_text)
-            label.setToolTip(TOOLTIPS[tooltip_key])
-            label.setCursor(Qt.CursorShape.PointingHandCursor)
-            general_layout.addRow(label, widget)
-            return label
-
         self.enabled_check = QCheckBox("Enable Context Shuffler")
         self.enabled_check.setToolTip(TOOLTIPS["enabled"])
         general_layout.addRow(self.enabled_check)
 
         self.hotkey_edit = QLineEdit()
-        labeled_field("Toggle Hotkey:", self.hotkey_edit, "hotkey")
+        self._add_field(general_layout,"Toggle Hotkey:", self.hotkey_edit, "hotkey")
 
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
@@ -72,15 +72,15 @@ class SettingsDialog(QDialog):
         for provider_key, provider_name in PROVIDER_NAMES.items():
             self.provider_combo.addItem(provider_name, provider_key)
         self.provider_combo.currentIndexChanged.connect(self.on_provider_changed)
-        labeled_field("Provider:", self.provider_combo, "provider")
+        self._add_field(general_layout,"Provider:", self.provider_combo, "provider")
 
         self.base_url_edit = QLineEdit()
-        labeled_field("Base URL:", self.base_url_edit, "base_url")
+        self._add_field(general_layout,"Base URL:", self.base_url_edit, "base_url")
 
         self.api_key_edit = QLineEdit()
         self.api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_edit.setPlaceholderText("Optional — for providers that require authentication")
-        labeled_field("API Key:", self.api_key_edit, "api_key")
+        self._add_field(general_layout,"API Key:", self.api_key_edit, "api_key")
 
         self.model_combo = QComboBox()
         self.model_combo.setEditable(True)
@@ -92,7 +92,7 @@ class SettingsDialog(QDialog):
         model_layout = QHBoxLayout()
         model_layout.addWidget(self.model_combo, 1)
         model_layout.addWidget(self.refresh_models_btn)
-        labeled_field("Model:", model_layout, "model")
+        self._add_field(general_layout,"Model:", model_layout, "model")
 
         self.model_warning_label = QLabel(
             "Warning: Avoid 'thinking' models (e.g., Qwen3-30G, DeepSeek-R1) — they may fail to generate due to high context usage."
@@ -114,13 +114,6 @@ class SettingsDialog(QDialog):
         strategy_layout = QFormLayout()
         strategy_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        def strategy_labeled_field(label_text: str, widget, tooltip_key: str) -> QLabel:
-            label = QLabel(label_text)
-            label.setToolTip(TOOLTIPS[tooltip_key])
-            label.setCursor(Qt.CursorShape.PointingHandCursor)
-            strategy_layout.addRow(label, widget)
-            return label
-
         strategy_header = QLabel("<b>Shuffling Strategy</b>")
         strategy_layout.addRow(strategy_header)
 
@@ -128,7 +121,7 @@ class SettingsDialog(QDialog):
         self.strategy_combo.addItem("Always Shuffle", "always")
         self.strategy_combo.addItem("Ease-Based Shuffling", "ease-based")
         self.strategy_combo.setToolTip(TOOLTIPS["shuffling_strategy"])
-        strategy_labeled_field("Strategy:", self.strategy_combo, "shuffling_strategy")
+        self._add_field(strategy_layout,"Strategy:", self.strategy_combo, "shuffling_strategy")
 
         line2 = QFrame()
         line2.setFrameShape(QFrame.Shape.HLine)
@@ -146,7 +139,7 @@ class SettingsDialog(QDialog):
         self.lapse_duration_spin.setRange(1, 10)
         self.lapse_duration_spin.setValue(3)
         self.lapse_duration_spin.setSuffix(" reviews")
-        strategy_labeled_field("Recovery Duration:", self.lapse_duration_spin, "lapse_recovery_duration")
+        self._add_field(strategy_layout,"Recovery Duration:", self.lapse_duration_spin, "lapse_recovery_duration")
 
         strategy_tab.setLayout(strategy_layout)
         self.tab_widget.addTab(strategy_tab, "Strategy")
@@ -156,17 +149,10 @@ class SettingsDialog(QDialog):
         advanced_layout = QFormLayout()
         advanced_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        def advanced_labeled_field(label_text: str, widget, tooltip_key: str) -> QLabel:
-            label = QLabel(label_text)
-            label.setToolTip(TOOLTIPS[tooltip_key])
-            label.setCursor(Qt.CursorShape.PointingHandCursor)
-            advanced_layout.addRow(label, widget)
-            return label
-
         self.target_edit = QLineEdit()
         self.context_edit = QLineEdit()
-        advanced_labeled_field("Target Word Field:", self.target_edit, "target_field")
-        advanced_labeled_field("Context Sentence Field:", self.context_edit, "context_field")
+        self._add_field(advanced_layout,"Target Word Field:", self.target_edit, "target_field")
+        self._add_field(advanced_layout,"Context Sentence Field:", self.context_edit, "context_field")
 
         self.temp_spin = QDoubleSpinBox()
         self.temp_spin.setRange(0.0, 1.0)
@@ -181,9 +167,9 @@ class SettingsDialog(QDialog):
         self.keep_alive_spin.setRange(0, 60)
         self.keep_alive_spin.setSuffix(" min (0 = use default)")
 
-        advanced_labeled_field("Temperature:", self.temp_spin, "temperature")
-        advanced_labeled_field("Max Tokens:", self.max_tokens_spin, "max_tokens")
-        advanced_labeled_field("Keep Alive:", self.keep_alive_spin, "keep_alive")
+        self._add_field(advanced_layout,"Temperature:", self.temp_spin, "temperature")
+        self._add_field(advanced_layout,"Max Tokens:", self.max_tokens_spin, "max_tokens")
+        self._add_field(advanced_layout,"Keep Alive:", self.keep_alive_spin, "keep_alive")
 
         line3 = QFrame()
         line3.setFrameShape(QFrame.Shape.HLine)
@@ -192,14 +178,14 @@ class SettingsDialog(QDialog):
 
         self.prompt_edit = QPlainTextEdit()
         self.prompt_edit.setMaximumHeight(160)
-        advanced_labeled_field("System Prompt:", self.prompt_edit, "system_prompt")
+        self._add_field(advanced_layout,"System Prompt:", self.prompt_edit, "system_prompt")
 
         self.decks_edit = QPlainTextEdit()
         self.decks_edit.setMaximumHeight(80)
         self.decks_edit.setPlaceholderText(
             "One deck name per line. If completely empty, the add-on applies to all decks."
         )
-        advanced_labeled_field("Enabled Decks:", self.decks_edit, "enabled_decks")
+        self._add_field(advanced_layout,"Enabled Decks:", self.decks_edit, "enabled_decks")
 
         line4 = QFrame()
         line4.setFrameShape(QFrame.Shape.HLine)
@@ -211,7 +197,7 @@ class SettingsDialog(QDialog):
 
         self.purge_btn = QPushButton("Purge All Cached Variations")
         self.purge_btn.clicked.connect(self.on_purge_clicked)
-        advanced_labeled_field("Maintenance:", self.purge_btn, "purge_btn")
+        self._add_field(advanced_layout,"Maintenance:", self.purge_btn, "purge_btn")
 
         self.purge_lapse_btn = QPushButton("Clear Lapse Recovery Data")
         self.purge_lapse_btn.clicked.connect(self.on_purge_lapse_clicked)
@@ -257,7 +243,6 @@ class SettingsDialog(QDialog):
 
         def background_test():
             try:
-                from ..core.providers import get_provider
                 provider = get_provider(provider_key, base_url)
                 models = provider.list_models()
                 mw.taskman.run_on_main(lambda: self._on_test_result(True, models, None))
@@ -392,30 +377,8 @@ class SettingsDialog(QDialog):
             elif models:
                 self.model_combo.setCurrentIndex(0)
 
-    def _populate_models(self, selected_model: str = ""):
-        self.model_combo.clear()
-        try:
-            base_url = self._get_base_url()
-            provider_key = self._get_current_provider_key()
-            provider = get_provider(provider_key, base_url)
-            models = provider.list_models()
-            if models:
-                for model in sorted(models):
-                    self.model_combo.addItem(model)
-                if selected_model and selected_model in models:
-                    self.model_combo.setCurrentText(selected_model)
-                else:
-                    self.model_combo.setCurrentIndex(0)
-            else:
-                self.model_combo.addItem("(no models found)")
-        except Exception:
-            self.model_combo.addItem("(connection failed)")
-
-        if selected_model and self.model_combo.findText(selected_model) == -1:
-            self.model_combo.setCurrentText(selected_model)
-
     def on_refresh_models(self):
-        self._populate_models(self.model_combo.currentText())
+        self._start_background_model_load()
 
     def on_purge_clicked(self):
         if askUser(
