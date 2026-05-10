@@ -19,6 +19,7 @@ TOOLTIPS = {
     "keep_alive": "How long to keep the model loaded in memory after each request. Set to 0 for default behavior.",
     "system_prompt": "Instructions that guide how the model generates sentences. Be specific about tone, style, or constraints you want.",
     "enabled_decks": "Only apply shuffling to these decks. Leave empty to apply to all decks. One deck name per line.",
+    "api_key": "API key for providers that require authentication (e.g., OpenAI, OpenRouter). Leave empty for local servers like Ollama.",
     "purge_btn": "Delete all cached sentence variations. Use this after changing the system prompt or model to get fresh variations.",
     "refresh_models": "Fetch the list of available models from the server.",
     "shuffling_strategy": "Choose how sentences are shuffled.\n\nAlways: Always show a shuffled sentence.\n\nEase-Based: Shuffle frequency adjusts based on how well you know the card (Hard = less shuffling, Easy = more shuffling).",
@@ -79,7 +80,7 @@ class SettingsDialog(QDialog):
         self.api_key_edit = QLineEdit()
         self.api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_edit.setPlaceholderText("Optional — for providers that require authentication")
-        labeled_field("API Key:", self.api_key_edit, "base_url")
+        labeled_field("API Key:", self.api_key_edit, "api_key")
 
         self.model_combo = QComboBox()
         self.model_combo.setEditable(True)
@@ -250,7 +251,6 @@ class SettingsDialog(QDialog):
         """Tests the LLM connection by calling list_models()."""
         base_url = self._get_base_url()
         provider_key = self._get_current_provider_key()
-        api_key = self.api_key_edit.text().strip()
 
         self.test_connection_btn.setEnabled(False)
         self.test_connection_btn.setText("Testing...")
