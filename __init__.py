@@ -104,6 +104,16 @@ def on_card_will_show(text: str, card: "anki.cards.Card", kind: str) -> str:
         return text
 
     config = mw.addonManager.getConfig(__name__) or {}
+    # Migrate old config keys (pre-provider-abstraction)
+    changed = False
+    if "ollama_url" in config and "base_url" not in config:
+        config["base_url"] = config["ollama_url"]
+        changed = True
+    if "url" in config and "base_url" not in config:
+        config["base_url"] = config["url"]
+        changed = True
+    if changed:
+        mw.addonManager.writeConfig(__name__, config)
 
     # Master Enable/Disable Toggle
     if not config.get("enabled", True):
@@ -125,6 +135,8 @@ def on_card_will_show(text: str, card: "anki.cards.Card", kind: str) -> str:
     target_field = config.get("target_field", "TargetWord")
 
     if context_field not in note or target_field not in note:
+        return text
+    if not note[target_field].strip() or not note[context_field].strip():
         return text
 
     original_context = note[context_field]
@@ -156,7 +168,10 @@ def on_card_will_show(text: str, card: "anki.cards.Card", kind: str) -> str:
                 # Trigger the background generation
                 def on_success(card_id: int, original: str, generated: str) -> None:
                     cache_manager.save_variation(card_id, original, generated)
-                    tooltip("CS: Context Updated", period=1000)
+                    tooltip("CS: ✓ Context updated", period=1000)
+
+                def on_error(error_msg: str) -> None:
+                    tooltip(f"CS: ✗ {error_msg}", period=3000)
 
                 llm_worker.trigger_generation(
                     card_id=card.id,
@@ -164,6 +179,7 @@ def on_card_will_show(text: str, card: "anki.cards.Card", kind: str) -> str:
                     sentence=original_context,
                     config=config,
                     on_success_callback=on_success,
+                    on_error_callback=on_error,
                 )
             else:
                 # Strategy says don't shuffle - use original
@@ -187,6 +203,16 @@ def on_answer_card(reviewer, card: "anki.cards.Card", ease: int) -> None:
     global last_card_ease
 
     config = mw.addonManager.getConfig(__name__) or {}
+    # Migrate old config keys (pre-provider-abstraction)
+    changed = False
+    if "ollama_url" in config and "base_url" not in config:
+        config["base_url"] = config["ollama_url"]
+        changed = True
+    if "url" in config and "base_url" not in config:
+        config["base_url"] = config["url"]
+        changed = True
+    if changed:
+        mw.addonManager.writeConfig(__name__, config)
 
     if not config.get("enabled", True):
         return
@@ -211,6 +237,17 @@ def on_settings_clicked() -> None:
 
 def on_reviewer_init(reviewer) -> None:
     config = mw.addonManager.getConfig(__name__) or {}
+    # Migrate old config keys (pre-provider-abstraction)
+    changed = False
+    if "ollama_url" in config and "base_url" not in config:
+        config["base_url"] = config["ollama_url"]
+        changed = True
+    if "url" in config and "base_url" not in config:
+        config["base_url"] = config["url"]
+        changed = True
+    if changed:
+        mw.addonManager.writeConfig(__name__, config)
+
     if not config.get("enabled", True):
         return
 
@@ -235,6 +272,17 @@ def on_reviewer_init(reviewer) -> None:
 def toggle_enabled() -> None:
     """Toggle the enabled state and show a toast notification."""
     config = mw.addonManager.getConfig(__name__) or {}
+    # Migrate old config keys (pre-provider-abstraction)
+    changed = False
+    if "ollama_url" in config and "base_url" not in config:
+        config["base_url"] = config["ollama_url"]
+        changed = True
+    if "url" in config and "base_url" not in config:
+        config["base_url"] = config["url"]
+        changed = True
+    if changed:
+        mw.addonManager.writeConfig(__name__, config)
+
     current = config.get("enabled", True)
     config["enabled"] = not current
     mw.addonManager.writeConfig(__name__, config)
@@ -245,6 +293,17 @@ def toggle_enabled() -> None:
 def update_hotkey() -> None:
     """Update the hotkey shortcut from current config."""
     config = mw.addonManager.getConfig(__name__) or {}
+    # Migrate old config keys (pre-provider-abstraction)
+    changed = False
+    if "ollama_url" in config and "base_url" not in config:
+        config["base_url"] = config["ollama_url"]
+        changed = True
+    if "url" in config and "base_url" not in config:
+        config["base_url"] = config["url"]
+        changed = True
+    if changed:
+        mw.addonManager.writeConfig(__name__, config)
+
     hotkey = config.get("hotkey", "Ctrl+Shift+C")
 
     # Remove old shortcut if it exists
