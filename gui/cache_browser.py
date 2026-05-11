@@ -90,8 +90,15 @@ class CacheBrowser(QDialog):
             self.table.setItem(row, 0, QTableWidgetItem(str(card_id)))
             self.table.setItem(row, 1, QTableWidgetItem(variation))
             self.table.setRowHeight(
-                row, max(40, min(100, variation.count(" ") * 3 + 20))
+                row, max(40, min(120, len(variation) * 0.5))
             )
+            # Check if card still exists
+            card = mw.col.get_card(card_id)
+            if card is None:
+                color = QColor(180, 180, 180)
+                self.table.item(row, 0).setForeground(color)
+                self.table.item(row, 1).setForeground(color)
+                self.table.item(row, 0).setText(f"{card_id} (deleted)")
 
     def _on_search_changed(self, text: str):
         text_lower = text.lower()
@@ -120,6 +127,9 @@ class CacheBrowser(QDialog):
             return
 
         if askUser(f"Delete {len(rows)} selected variation(s)?"):
+            self.delete_btn.setEnabled(False)
+            self.delete_all_btn.setEnabled(False)
+            QApplication.processEvents()
             for row in rows:
                 card_id = int(self.table.item(row, 0).text())
                 cache_manager.delete_variation(card_id)
@@ -158,15 +168,22 @@ class CacheBrowser(QDialog):
 
         def on_success(card_id: int, original: str, generated: str) -> None:
             cache_manager.save_variation(card_id, original, generated)
-            tooltip("CS: Variation regenerated", period=1500)
+            tooltip("CS: ✓ Variation regenerated", period=1500)
             self._load_data()
+            self.regenerate_btn.setEnabled(True)
 
+        def on_error(error_msg: str) -> None:
+            tooltip(f"CS: ✗ {error_msg}", period=3000)
+            self.regenerate_btn.setEnabled(True)
+
+        self.regenerate_btn.setEnabled(False)
         llm_worker.trigger_generation(
             card_id=card_id,
             target=target_word,
             sentence=original_sentence,
             config=config,
             on_success_callback=on_success,
+            on_error_callback=on_error,
         )
 
         tooltip("CS: Regenerating...", period=1000)
@@ -175,6 +192,9 @@ class CacheBrowser(QDialog):
         if askUser(
             "Are you sure you want to delete ALL cached variations? This cannot be undone."
         ):
+            self.delete_btn.setEnabled(False)
+            self.delete_all_btn.setEnabled(False)
+            QApplication.processEvents()
             cache_manager.clear_all_variations()
             self._load_data()
             showInfo("All cached variations have been deleted.")
