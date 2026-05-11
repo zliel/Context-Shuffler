@@ -233,7 +233,12 @@ class SettingsDialog(QDialog):
         if askUser(
             "Are you sure you want to clear all lapse recovery data? This will resume shuffling for all cards in recovery mode."
         ):
+            self.purge_lapse_btn.setEnabled(False)
+            self.purge_lapse_btn.setText("Clearing...")
+            QApplication.processEvents()
             cache_manager.clear_all_lapse_data()
+            self.purge_lapse_btn.setEnabled(True)
+            self.purge_lapse_btn.setText("Clear Lapse Recovery Data")
             showInfo("Lapse recovery data has been cleared.")
 
     def _on_browse_cache_clicked(self):
@@ -376,12 +381,14 @@ class SettingsDialog(QDialog):
         self._check_connection()
 
     def _start_background_model_load(self):
-        self.model_combo.clear()
-        self.model_combo.addItem("(loading models...)")
+        current_model = self.model_combo.currentText()
 
         base_url = self._get_base_url()
         provider_key = self._get_current_provider_key()
-        saved_model = self.config_data.get("model", "")
+        saved_model = self.config_data.get("model", current_model or "")
+
+        self.refresh_models_btn.setEnabled(False)
+        self.refresh_models_btn.setText("Refreshing...")
 
         def background_load():
             try:
@@ -399,9 +406,14 @@ class SettingsDialog(QDialog):
         thread.start()
 
     def _on_models_loaded(self, models: list, selected_model: str, error: bool = False):
+        self.refresh_models_btn.setEnabled(True)
+        self.refresh_models_btn.setText("Refresh")
         self.model_combo.clear()
         if error or not models:
-            self.model_combo.addItem("(connection failed)")
+            if not models:
+                self.model_combo.addItem("(no models found)")
+            else:
+                self.model_combo.addItem("(connection failed)")
             if selected_model:
                 self.model_combo.setCurrentText(selected_model)
         else:
@@ -419,7 +431,12 @@ class SettingsDialog(QDialog):
         if askUser(
             "Are you sure you want to purge all AI-generated variations from the cache? This cannot be undone."
         ):
+            self.purge_btn.setEnabled(False)
+            self.purge_btn.setText("Purging...")
+            QApplication.processEvents()
             cache_manager.clear_all_variations()
+            self.purge_btn.setEnabled(True)
+            self.purge_btn.setText("Purge All Cached Variations")
             showInfo("Cache database has been cleared.")
 
     def on_accept(self):
