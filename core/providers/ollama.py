@@ -24,10 +24,12 @@ class OllamaProvider(LLMProvider):
         system_prompt: str,
         temperature: float,
         max_tokens: int,
+        model: str,
+        api_key: str = "",
         keep_alive: int = 0,
     ) -> Optional[str]:
         payload = {
-            "model": "",
+            "model": model,
             "system": system_prompt,
             "prompt": prompt,
             "stream": False,
@@ -48,7 +50,8 @@ class OllamaProvider(LLMProvider):
             opener = urllib.request.build_opener(proxy_handler)
             with opener.open(req, timeout=300) as response:
                 result = json.loads(response.read().decode("utf-8"))
-                return result.get("response", "").strip()
+                raw = result.get("response", "").strip()
+                return self.clean_response(raw) if raw else ""
         except (urllib.error.URLError, Exception):
             return None
 
@@ -74,7 +77,7 @@ class OllamaProvider(LLMProvider):
         except Exception:
             return False
 
-    def list_models(self) -> list[str]:
+    def list_models(self, api_key: str = "") -> list[str]:
         try:
             url = f"{self.base_url}/api/tags"
             req = urllib.request.Request(url, method="GET")

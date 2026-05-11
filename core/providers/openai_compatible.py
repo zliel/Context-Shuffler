@@ -24,6 +24,8 @@ class OpenAICompatibleProvider(LLMProvider):
         system_prompt: str,
         temperature: float,
         max_tokens: int,
+        model: str,
+        api_key: str = "",
         keep_alive: int = 0,
     ) -> Optional[str]:
         messages = []
@@ -32,7 +34,7 @@ class OpenAICompatibleProvider(LLMProvider):
         messages.append({"role": "user", "content": prompt})
 
         payload = {
-            "model": "",
+            "model": model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
@@ -43,6 +45,8 @@ class OpenAICompatibleProvider(LLMProvider):
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, method="POST")
         req.add_header("Content-Type", "application/json")
+        if api_key:
+            req.add_header("Authorization", f"Bearer {api_key}")
 
         try:
             proxy_handler = urllib.request.ProxyHandler({})
@@ -51,15 +55,19 @@ class OpenAICompatibleProvider(LLMProvider):
                 result = json.loads(response.read().decode("utf-8"))
                 choices = result.get("choices", [])
                 if choices:
-                    return choices[0].get("message", {}).get("content", "").strip()
+                    raw = choices[0].get("message", {}).get("content", "").strip()
+                    return self.clean_response(raw) if raw else ""
                 return ""
         except (urllib.error.URLError, Exception):
             return None
 
-    def list_models(self) -> list[str]:
+    def list_models(self, api_key: str = "") -> list[str]:
         try:
             url = f"{self.base_url}/v1/models"
             req = urllib.request.Request(url, method="GET")
+            req.add_header("Content-Type", "application/json")
+            if api_key:
+                req.add_header("Authorization", f"Bearer {api_key}")
             proxy_handler = urllib.request.ProxyHandler({})
             opener = urllib.request.build_opener(proxy_handler)
             with opener.open(req, timeout=10) as response:
