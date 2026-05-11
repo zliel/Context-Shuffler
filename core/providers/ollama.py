@@ -1,8 +1,16 @@
 import json
+import socket
 import urllib.request
 import urllib.error
 from typing import Optional
 from .base import LLMProvider
+from .exceptions import (
+    LLMConnectionError,
+    LLMTimeoutError,
+    LLMRateLimitError,
+    LLMBadResponseError,
+    LLMEmptyResponseError,
+)
 
 
 class OllamaProvider(LLMProvider):
@@ -51,9 +59,25 @@ class OllamaProvider(LLMProvider):
             with opener.open(req, timeout=300) as response:
                 result = json.loads(response.read().decode("utf-8"))
                 raw = result.get("response", "").strip()
+                if not raw:
+                    raise LLMEmptyResponseError("Empty response from Ollama")
                 return self.clean_response(raw) if raw else ""
-        except (urllib.error.URLError, Exception):
-            return None
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 503):
+                raise LLMRateLimitError(f"Ollama rate-limited (HTTP {e.code})")
+            raise LLMConnectionError(f"Ollama HTTP error {e.code}: {e.reason}")
+        except urllib.error.URLError as e:
+            raise LLMConnectionError(f"Ollama connection failed: {e.reason}")
+        except socket.timeout:
+            raise LLMTimeoutError("Ollama request timed out")
+        except json.JSONDecodeError as e:
+            raise LLMBadResponseError(f"Ollama returned invalid JSON: {e}")
+        except KeyError as e:
+            raise LLMBadResponseError(f"Ollama response missing key: {e}")
+        except LLMEmptyResponseError:
+            raise
+        except Exception as e:
+            raise LLMConnectionError(f"Ollama error: {e}")
 
     def warm_up(self, model: str, keep_alive: int = 0) -> bool:
         payload = {
@@ -74,6 +98,8 @@ class OllamaProvider(LLMProvider):
             opener = urllib.request.build_opener(proxy_handler)
             with opener.open(req, timeout=30) as response:
                 return response.status == 200
+        except urllib.error.URLError:
+            return False
         except Exception:
             return False
 
