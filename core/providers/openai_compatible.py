@@ -1,8 +1,16 @@
 import json
+import socket
 import urllib.request
 import urllib.error
 from typing import Optional
 from .base import LLMProvider
+from .exceptions import (
+    LLMConnectionError,
+    LLMTimeoutError,
+    LLMRateLimitError,
+    LLMBadResponseError,
+    LLMEmptyResponseError,
+)
 
 
 class OpenAICompatibleProvider(LLMProvider):
@@ -54,12 +62,28 @@ class OpenAICompatibleProvider(LLMProvider):
             with opener.open(req, timeout=300) as response:
                 result = json.loads(response.read().decode("utf-8"))
                 choices = result.get("choices", [])
-                if choices:
-                    raw = choices[0].get("message", {}).get("content", "").strip()
-                    return self.clean_response(raw) if raw else ""
-                return ""
-        except (urllib.error.URLError, Exception):
-            return None
+                if not choices:
+                    raise LLMBadResponseError("OpenAI response missing choices")
+                raw = choices[0].get("message", {}).get("content", "").strip()
+                if not raw:
+                    raise LLMEmptyResponseError("Empty response from OpenAI-compatible provider")
+                return self.clean_response(raw) if raw else ""
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 503):
+                raise LLMRateLimitError(f"Server rate-limited (HTTP {e.code})")
+            raise LLMConnectionError(f"HTTP error {e.code}: {e.reason}")
+        except urllib.error.URLError as e:
+            raise LLMConnectionError(f"Connection failed: {e.reason}")
+        except socket.timeout:
+            raise LLMTimeoutError("Request timed out")
+        except json.JSONDecodeError as e:
+            raise LLMBadResponseError(f"Invalid JSON response: {e}")
+        except KeyError as e:
+            raise LLMBadResponseError(f"Response missing key: {e}")
+        except LLMEmptyResponseError:
+            raise
+        except Exception as e:
+            raise LLMConnectionError(f"Provider error: {e}")
 
     def list_models(self, api_key: str = "") -> list[str]:
         try:

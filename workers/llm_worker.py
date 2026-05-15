@@ -1,14 +1,25 @@
 from aqt import mw
 import threading
 from ..core.providers import get_provider
+from ..core.providers.exceptions import (
+    LLMConnectionError,
+    LLMTimeoutError,
+    LLMRateLimitError,
+)
 
 
 def trigger_generation(
-    card_id: int, target: str, sentence: str, config: dict, on_success_callback
+    card_id: int,
+    target: str,
+    sentence: str,
+    config: dict,
+    on_success_callback,
+    on_error_callback=None,
 ) -> None:
     """
     Triggers an asynchronous call to the LLM off the main thread.
-    Uses the provider abstraction to make the API call.
+    Uses retry_generate() for transient failure resilience.
+    Calls on_error_callback(error_msg) on failure.
     """
     provider_type = config.get("provider", "ollama")
     base_url = config.get("base_url", "http://localhost:11434")
@@ -27,7 +38,7 @@ def trigger_generation(
                 f"Original Sentence: {sentence}\n\n"
                 f"Rephrased Sentence:"
             )
-            generated = provider.generate(
+            generated = provider.retry_generate(
                 prompt=prompt,
                 system_prompt=system_prompt,
                 temperature=temp,
@@ -36,12 +47,35 @@ def trigger_generation(
                 api_key=api_key,
                 keep_alive=keep_alive,
             )
-            if generated:
+            if generated and generated.strip():
                 mw.taskman.run_on_main(
                     lambda: on_success_callback(card_id, sentence, generated)
                 )
-        except Exception:
-            pass  # Silently fail — same behavior as before
+            else:
+                if on_error_callback:
+                    mw.taskman.run_on_main(
+                        lambda: on_error_callback("LLM returned empty response")
+                    )
+        except LLMConnectionError as e:
+            if on_error_callback:
+                mw.taskman.run_on_main(
+                    lambda: on_error_callback(f"Connection error: {e}")
+                )
+        except LLMTimeoutError as e:
+            if on_error_callback:
+                mw.taskman.run_on_main(
+                    lambda: on_error_callback(f"Request timed out: {e}")
+                )
+        except LLMRateLimitError as e:
+            if on_error_callback:
+                mw.taskman.run_on_main(
+                    lambda: on_error_callback(f"Rate limited: {e}")
+                )
+        except Exception as e:
+            if on_error_callback:
+                mw.taskman.run_on_main(
+                    lambda: on_error_callback(f"Generation failed: {e}")
+                )
 
     thread = threading.Thread(target=background_task, daemon=True)
     thread.start()

@@ -106,6 +106,13 @@ class SettingsDialog(QDialog):
         self.test_connection_btn.clicked.connect(self._on_test_connection_clicked)
         general_layout.addRow("", self.test_connection_btn)
 
+        self.connection_indicator = QLabel("○ Checking...")
+        self.connection_indicator.setStyleSheet("color: #cc8800; font-weight: bold;")
+        indicator_layout = QHBoxLayout()
+        indicator_layout.addWidget(self.connection_indicator)
+        indicator_layout.addStretch()
+        general_layout.addRow("Status:", indicator_layout)
+
         general_tab.setLayout(general_layout)
         self.tab_widget.addTab(general_tab, "General")
 
@@ -226,7 +233,12 @@ class SettingsDialog(QDialog):
         if askUser(
             "Are you sure you want to clear all lapse recovery data? This will resume shuffling for all cards in recovery mode."
         ):
+            self.purge_lapse_btn.setEnabled(False)
+            self.purge_lapse_btn.setText("Clearing...")
+            QApplication.processEvents()
             cache_manager.clear_all_lapse_data()
+            self.purge_lapse_btn.setEnabled(True)
+            self.purge_lapse_btn.setText("Clear Lapse Recovery Data")
             showInfo("Lapse recovery data has been cleared.")
 
     def _on_browse_cache_clicked(self):
@@ -270,6 +282,37 @@ class SettingsDialog(QDialog):
                 title="Connection Test"
             )
 
+    def _check_connection(self):
+        """Background connection check on dialog open."""
+        base_url = self._get_base_url()
+        provider_key = self._get_current_provider_key()
+        api_key = self.api_key_edit.text().strip()
+
+        def background():
+            try:
+                provider = get_provider(provider_key, base_url)
+                models = provider.list_models(api_key=api_key)
+                count = len(models) if models else 0
+                mw.taskman.run_on_main(
+                    lambda: self._set_connection_status(True, f"Connected — {count} model(s) available")
+                )
+            except Exception as e:
+                mw.taskman.run_on_main(
+                    lambda: self._set_connection_status(False, str(e))
+                )
+
+        thread = threading.Thread(target=background, daemon=True)
+        thread.start()
+
+    def _set_connection_status(self, connected: bool, detail: str):
+        if connected:
+            self.connection_indicator.setText("● Connected")
+            self.connection_indicator.setStyleSheet("color: #228B22; font-weight: bold;")
+        else:
+            self.connection_indicator.setText("○ Disconnected")
+            self.connection_indicator.setStyleSheet("color: #CC3333; font-weight: bold;")
+        self.connection_indicator.setToolTip(detail)
+
     def _get_current_provider_key(self) -> str:
         return self.provider_combo.currentData()
 
@@ -288,6 +331,9 @@ class SettingsDialog(QDialog):
             self.base_url_edit.setText(default_url)
 
         self._start_background_model_load()
+        self.connection_indicator.setText("○ Checking...")
+        self.connection_indicator.setStyleSheet("color: #cc8800; font-weight: bold;")
+        self._check_connection()
 
     def _load_config(self):
         self.enabled_check.setChecked(self.config_data.get("enabled", True))
@@ -332,14 +378,17 @@ class SettingsDialog(QDialog):
         )
 
         self._start_background_model_load()
+        self._check_connection()
 
     def _start_background_model_load(self):
-        self.model_combo.clear()
-        self.model_combo.addItem("(loading models...)")
+        current_model = self.model_combo.currentText()
 
         base_url = self._get_base_url()
         provider_key = self._get_current_provider_key()
-        saved_model = self.config_data.get("model", "")
+        saved_model = self.config_data.get("model", current_model or "")
+
+        self.refresh_models_btn.setEnabled(False)
+        self.refresh_models_btn.setText("Refreshing...")
 
         def background_load():
             try:
@@ -357,9 +406,14 @@ class SettingsDialog(QDialog):
         thread.start()
 
     def _on_models_loaded(self, models: list, selected_model: str, error: bool = False):
+        self.refresh_models_btn.setEnabled(True)
+        self.refresh_models_btn.setText("Refresh")
         self.model_combo.clear()
         if error or not models:
-            self.model_combo.addItem("(connection failed)")
+            if not models:
+                self.model_combo.addItem("(no models found)")
+            else:
+                self.model_combo.addItem("(connection failed)")
             if selected_model:
                 self.model_combo.setCurrentText(selected_model)
         else:
@@ -377,7 +431,12 @@ class SettingsDialog(QDialog):
         if askUser(
             "Are you sure you want to purge all AI-generated variations from the cache? This cannot be undone."
         ):
+            self.purge_btn.setEnabled(False)
+            self.purge_btn.setText("Purging...")
+            QApplication.processEvents()
             cache_manager.clear_all_variations()
+            self.purge_btn.setEnabled(True)
+            self.purge_btn.setText("Purge All Cached Variations")
             showInfo("Cache database has been cleared.")
 
     def on_accept(self):
